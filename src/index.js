@@ -1,6 +1,7 @@
-
+import multiparty from 'multiparty'
 import * as http from "http";
-const port =   process.env.PORT || 5000;
+
+const port = process.env.PORT || 5000;
 const data = {
 	[Date.now()]: {
 		title: 'Task one',
@@ -21,6 +22,7 @@ const data = {
 		id: Date.now() - 10
 	}
 }
+const filesData = {}
 
 function doRequest(request) {
 	let body = ''
@@ -43,38 +45,69 @@ const requestHandler = (request, response) => {
 	response.setHeader("Access-Control-Allow-Credentials", "true");
 	response.setHeader("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS,POST,PUT");
 	response.setHeader("Access-Control-Allow-Headers", "Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers");
-	console.log(method,'!!!!!')
 	if (method === 'GET') {
-//res.setEncoding('utf8');
 		response.write(JSON.stringify(Object.values(data)))
 		response.end()
 	}
 	if (method === 'POST') {
-		doRequest(request).then((r) => {
-			if (url.slice(1)) {//delete
-				const payload=JSON.parse(r)
-				payload.action==='delete'
-				? delete data[url.slice(1)]
-				:data[url.slice(1)].status=payload.data.status
+		if (url.slice(1) === 'modify') {//add edit
+			let form = new multiparty.Form()
+			form.parse(request, function (err, fields, files) {
+				const filesNames = files.file?.map(f => f.originalFilename)
+				console.log(filesNames,'FILENAMES')
+				console.log(fields)
+				console.log(files)
+				files.file?.forEach(file => {
+					filesData[file.originalFilename] = file
+				});
+				if (data[fields.id[0]]) {
+					console.log("ALREADY")
+					//console.log(fields)
+				//	console.log(data[fields.id[0]])
+					Object.entries(fields).forEach(f => {
+						data[fields.id[0]][f[0]] = f[1]
+					})
+					const newFiles=files.file.map(e=>e.originalFilename)
+					data[fields.id[0]].files=[...data[fields.id[0]].files,...newFiles]
+					response.write(JSON.stringify(Object.values(data)))
+					response.end()
+					return
+				}
+				if (!data[fields.id[0]]) {
+					data[fields.id[0]] = {...fields, files: filesNames || []}
+					response.write(JSON.stringify(Object.values(data)))
+					response.end()
+				}
 
+			})
+		}
+		else if (url.slice(1) === 'delete') {
+			doRequest(request).then(r => {
+				const delId = JSON.parse(r).data
+				delete data[delId]
+				response.write(JSON.stringify(Object.values(data)))
+				response.end()
+			})
+		}
+		else if (url.slice(1) === 'status') {
+			doRequest(request).then(r => {
+				const payload = JSON.parse(r)
+				data[payload.data.id].status = payload.data.status
+				response.write(JSON.stringify(Object.values(data)))
+				response.end()
+			})
+		}
+		else if (url.slice(1) === 'file') {
+			doRequest(request).then(r => {
+				const payload = JSON.parse(r)
+				data[payload.data.id].files =
+					data[payload.data.id].files.slice().filter(e => e !== payload.data.file)
+				//console.log(data,'DDDD')
+				response.write(JSON.stringify(Object.values(data)))
+				response.end()
+			})
+		}
 
-			} else {//add task
-				const task = JSON.parse(r)
-				data[task.id] = task
-			}
-			response.write(JSON.stringify(Object.values(data)))
-			response.end()
-		})
-	}
-	if (method === 'PUT') {
-		console.log("&&&&&&")
-		doRequest(request).then((r) => {
-			console.log(r,'!!@@!@')
-			const status = r
-			data[url.slice(1)]=status
-			response.write(JSON.stringify(data[url.slice(1)]))
-			response.end()
-		})
 	}
 };
 
