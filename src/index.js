@@ -54,20 +54,14 @@ const requestHandler = (request, response) => {
 			let form = new multiparty.Form()
 			form.parse(request, function (err, fields, files) {
 				const filesNames = files.file?.map(f => f.originalFilename)
-				console.log(filesNames,'FILENAMES')
-				console.log(fields)
-				console.log(files)
 				files.file?.forEach(file => {
 					filesData[file.originalFilename] = file
 				});
 				if (data[fields.id[0]]) {
-					console.log("ALREADY")
-					//console.log(fields)
-				//	console.log(data[fields.id[0]])
 					Object.entries(fields).forEach(f => {
 						data[fields.id[0]][f[0]] = f[1]
 					})
-					const newFiles=files.file.map(e=>e.originalFilename)
+					const newFiles=files.file?.map(e=>e.originalFilename)||[]
 					data[fields.id[0]].files=[...data[fields.id[0]].files,...newFiles]
 					response.write(JSON.stringify(Object.values(data)))
 					response.end()
@@ -107,7 +101,18 @@ const requestHandler = (request, response) => {
 				response.end()
 			})
 		}
-
+		else if(url.slice(1)==='missed'){
+			doRequest(request).then(r => {
+				const missedIds = JSON.parse(r)
+				console.log(missedIds,'$')
+				missedIds.forEach(id=>{
+					if(!id) return
+					data[id].status='missed'
+				})
+				response.write(JSON.stringify(Object.values(data)))
+				response.end()
+			})
+		}
 	}
 };
 
